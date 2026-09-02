@@ -3,6 +3,7 @@
 
 #include "VxMathDefines.h"
 #include "XUtil.h"
+#include "XDeterministicSort.h"
 
 #if VX_HAS_CXX11
 #include <initializer_list>
@@ -833,12 +834,13 @@ public:
     }
 
     /**
-     * @brief Sorts the array using the C standard library's `qsort`.
+     * @brief Sorts the array with XDeterministicQSort (the C runtime's `qsort`
+     * orders equal keys differently on every platform).
      * @param compare An optional pointer to a comparison function.
      */
     void Sort(VxSortFunc compare = XCompare) {
         if (Size() > 1)
-            qsort(m_Begin, Size(), sizeof(T), compare);
+            XDeterministicQSort(m_Begin, Size(), sizeof(T), compare);
     }
 
     /**
