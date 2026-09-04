@@ -197,9 +197,12 @@ VX_SIMD_INLINE __m128 VxSIMDMatrixMultiplyVector3(const float *mat, __m128 v) no
     __m128 v_y = _mm_shuffle_ps(v, v, _MM_SHUFFLE(1, 1, 1, 1));
     __m128 v_z = _mm_shuffle_ps(v, v, _MM_SHUFFLE(2, 2, 2, 2));
 
-    __m128 result = VX_FMADD_PS(r2, v_z, r3);
-    result = VX_FMADD_PS(r1, v_y, result);
-    result = VX_FMADD_PS(r0, v_x, result);
+    // Retail VxMath.dll accumulates left to right, ((r0*x + r1*y) + r2*z) + r3,
+    // and float addition is not associative.  Explicit multiplies and adds
+    // (not VX_FMADD_PS) so an FMA build cannot fuse away a rounding step.
+    __m128 result = _mm_add_ps(_mm_mul_ps(r0, v_x), _mm_mul_ps(r1, v_y));
+    result = _mm_add_ps(result, _mm_mul_ps(r2, v_z));
+    result = _mm_add_ps(result, r3);
     return result;
 }
 
@@ -215,9 +218,9 @@ VX_SIMD_INLINE __m128 VxSIMDMatrixRotateVector3(const float *mat, __m128 v) noex
     __m128 v_y = _mm_shuffle_ps(v, v, _MM_SHUFFLE(1, 1, 1, 1));
     __m128 v_z = _mm_shuffle_ps(v, v, _MM_SHUFFLE(2, 2, 2, 2));
 
-    __m128 result = _mm_mul_ps(r2, v_z);
-    result = VX_FMADD_PS(r1, v_y, result);
-    result = VX_FMADD_PS(r0, v_x, result);
+    // Left to right, (r0*x + r1*y) + r2*z, matching retail VxMath.dll.
+    __m128 result = _mm_add_ps(_mm_mul_ps(r0, v_x), _mm_mul_ps(r1, v_y));
+    result = _mm_add_ps(result, _mm_mul_ps(r2, v_z));
     return result;
 }
 

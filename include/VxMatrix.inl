@@ -304,7 +304,12 @@ inline void Vx3DMultiplyMatrix(VxMatrix &ResultMat, const VxMatrix &MatA, const 
     for (int i = 0; i < 4; i++) {
         const float bi0=MatB[i][0], bi1=MatB[i][1], bi2=MatB[i][2], bi3=MatB[i][3];
         for (int j = 0; j < 4; j++)
-            temp[i][j] = MatA[0][j]*bi0 + MatA[1][j]*bi1 + MatA[2][j]*bi2 + MatA[3][j]*bi3;
+            // Pairwise, not a left fold: retail VxMath.dll sums these four
+            // products as (p0+p1)+(p2+p3), and float addition is not
+            // associative, so any other grouping puts the reimplementation one
+            // or two ulp away from the shipped game.  Recovered by exhausting
+            // every ordering against the retail DLL (scripts/vxmath_diff/solve_mul).
+            temp[i][j] = (MatA[0][j]*bi0 + MatA[1][j]*bi1) + (MatA[2][j]*bi2 + MatA[3][j]*bi3);
     }
     temp[0][3] = 0.0f; temp[1][3] = 0.0f; temp[2][3] = 0.0f; temp[3][3] = 1.0f;
     ResultMat = temp;
@@ -319,7 +324,12 @@ inline void Vx3DMultiplyMatrix4(VxMatrix &ResultMat, const VxMatrix &MatA, const
     for (int i = 0; i < 4; i++) {
         const float bi0=MatB[i][0], bi1=MatB[i][1], bi2=MatB[i][2], bi3=MatB[i][3];
         for (int j = 0; j < 4; j++)
-            temp[i][j] = MatA[0][j]*bi0 + MatA[1][j]*bi1 + MatA[2][j]*bi2 + MatA[3][j]*bi3;
+            // Pairwise, not a left fold: retail VxMath.dll sums these four
+            // products as (p0+p1)+(p2+p3), and float addition is not
+            // associative, so any other grouping puts the reimplementation one
+            // or two ulp away from the shipped game.  Recovered by exhausting
+            // every ordering against the retail DLL (scripts/vxmath_diff/solve_mul).
+            temp[i][j] = (MatA[0][j]*bi0 + MatA[1][j]*bi1) + (MatA[2][j]*bi2 + MatA[3][j]*bi3);
     }
     ResultMat = temp;
 #endif
@@ -951,10 +961,13 @@ VX_SIMD_INLINE void VxSIMDMultiplyMatrixM(VxMatrix *result, const VxMatrix *a, c
         const __m128 b_z = _mm_shuffle_ps(bRow, bRow, _MM_SHUFFLE(2, 2, 2, 2));
         const __m128 b_w = _mm_shuffle_ps(bRow, bRow, _MM_SHUFFLE(3, 3, 3, 3));
 
-        __m128 res = VX_FMADD_PS(a2, b_z, _mm_mul_ps(a3, b_w));
-        res = VX_FMADD_PS(a1, b_y, res);
-        res = VX_FMADD_PS(a0, b_x, res);
-        _mm_storeu_ps(&(*out)[i][0], res);
+        // Retail VxMath.dll sums the four products pairwise, (p0+p1)+(p2+p3).
+        // Written with explicit multiplies and adds rather than VX_FMADD_PS so
+        // an FMA-enabled build cannot fuse a rounding step away and drift from
+        // both retail and the scalar path above.
+        const __m128 lo = _mm_add_ps(_mm_mul_ps(a0, b_x), _mm_mul_ps(a1, b_y));
+        const __m128 hi = _mm_add_ps(_mm_mul_ps(a2, b_z), _mm_mul_ps(a3, b_w));
+        _mm_storeu_ps(&(*out)[i][0], _mm_add_ps(lo, hi));
     }
 
     // Enforce 3D transformation constraints
@@ -1031,10 +1044,11 @@ VX_SIMD_INLINE void VxSIMDMultiplyMatrixM4(VxMatrix *result, const VxMatrix *a, 
         const __m128 b_z = _mm_shuffle_ps(bRow, bRow, _MM_SHUFFLE(2, 2, 2, 2));
         const __m128 b_w = _mm_shuffle_ps(bRow, bRow, _MM_SHUFFLE(3, 3, 3, 3));
 
-        __m128 res = VX_FMADD_PS(a2, b_z, _mm_mul_ps(a3, b_w));
-        res = VX_FMADD_PS(a1, b_y, res);
-        res = VX_FMADD_PS(a0, b_x, res);
-        _mm_storeu_ps(&(*out)[i][0], res);
+        // Pairwise, matching retail VxMath.dll and the scalar path; see
+        // VxSIMDMultiplyMatrixM above.
+        const __m128 lo = _mm_add_ps(_mm_mul_ps(a0, b_x), _mm_mul_ps(a1, b_y));
+        const __m128 hi = _mm_add_ps(_mm_mul_ps(a2, b_z), _mm_mul_ps(a3, b_w));
+        _mm_storeu_ps(&(*out)[i][0], _mm_add_ps(lo, hi));
     }
 
     if (out != result) {

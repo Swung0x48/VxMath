@@ -180,10 +180,12 @@ function(vx_copy_runtime_dependencies TARGET_NAME)
     endif ()
 
     if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.21")
+        # A build whose dependencies are all static (SDL3 built with
+        # SDL_STATIC) has no runtime DLLs, and "cmake -E copy_if_different"
+        # with only a destination is an error.  Wrapping the whole command in
+        # the genex makes it expand to nothing in that case.
         add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
-                COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                $<TARGET_RUNTIME_DLLS:${TARGET_NAME}>
-                $<TARGET_FILE_DIR:${TARGET_NAME}>
+                COMMAND "$<$<BOOL:$<TARGET_RUNTIME_DLLS:${TARGET_NAME}>>:${CMAKE_COMMAND};-E;copy_if_different;$<TARGET_RUNTIME_DLLS:${TARGET_NAME}>;$<TARGET_FILE_DIR:${TARGET_NAME}>>"
                 COMMAND_EXPAND_LISTS
         )
         return()
