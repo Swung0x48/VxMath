@@ -211,8 +211,13 @@
 #  endif
 #endif
 
-/* FMA (used for the VX_FMADD_PS / VX_FNMADD_PS macro fallbacks) */
-#if defined(__FMA__) || defined(VX_SIMD_FMA)
+/* FMA (used for the VX_FMADD_PS / VX_FNMADD_PS macro fallbacks).
+ * Opt-in only: define VX_SIMD_FMA to use it.  It is not switched on by the
+ * compiler's __FMA__ (any -march with FMA, e.g. x86-64-v3): a fused
+ * multiply-add rounds once where retail VxMath rounds twice, and the
+ * BallanceMMO server must compute the matrices (Vx3DInverseMatrix's cross
+ * products) bit for bit like the retail client (BallanceMMO engine change #23). */
+#if defined(VX_SIMD_FMA)
 #  ifndef VX_SIMD_FMA
 #    define VX_SIMD_FMA 1
 #  endif
