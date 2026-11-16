@@ -70,6 +70,7 @@ set(VXMATH_PRIVATE_HEADERS
 
 set(VXMATH_COMMON_SOURCES
         VxMath.cpp
+        VxMathX87Game.cpp
         VxSIMDDispatch.cpp
         VxBlitDispatchBridge.cpp
         VxGraphicUtils.cpp

@@ -335,7 +335,18 @@ inline void Vx3DMultiplyMatrix4(VxMatrix &ResultMat, const VxMatrix &MatA, const
 #endif
 }
 
+#if defined(VX_X87_GAME)
+// BallanceMMO x87-soft headless engine (VX_X87_GAME): the routines the 2002 VxMath.dll computes in x87 code, on the
+// IVP x87 model at the game thread's precision (VxMathX87Game.cpp).  The SSE-path routines (Vx3DMultiplyMatrix,
+// Vx3DRotateVector, ...) need none: the 2002 DLL takes its SSE path on every SSE CPU.
+void vx_x87_inverse_matrix(float *d, const float *m);
+void vx_x87_matrix_from_euler(float *m, float eax, float eay, float eaz);
+#endif
 inline void Vx3DInverseMatrix(VxMatrix &InverseMat, const VxMatrix &Mat) {
+#if defined(VX_X87_GAME)
+    vx_x87_inverse_matrix(&InverseMat[0][0], &Mat[0][0]);
+    return;
+#endif
 #if defined(VX_SIMD_SSE)
     VxSIMDInverseAffineMatrix(&InverseMat, &Mat);
 #else
@@ -643,6 +654,10 @@ inline void Vx3DMatrixFromRotationAndOrigin(VxMatrix &ResultMat, const VxVector 
 }
 
 inline void Vx3DMatrixFromEulerAngles(VxMatrix &Mat, float eax, float eay, float eaz) {
+#if defined(VX_X87_GAME)
+    vx_x87_matrix_from_euler(&Mat[0][0], eax, eay, eaz);
+    return;
+#endif
     float cx, sx, cy, sy, cz, sz;
     if (fabsf(eax) <= EPSILON) { cx = 1.0f; sx = eax; } else { cx = cosf(eax); sx = sinf(eax); }
     if (fabsf(eay) <= EPSILON) { cy = 1.0f; sy = eay; } else { cy = cosf(eay); sy = sinf(eay); }
